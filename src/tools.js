@@ -294,9 +294,17 @@ export function agentTools({ client, project = false }) {
           const lang = languageFor(language, read)
           const sections = (await client.layouts(site.uuid))?.sections ?? []
           if (!sections.length) return 'The site has no layout areas yet: no header, no footer. set_layout writes them.'
+          // An area can hold several sections (a notice above the header): say each one's place.
+          const areaOf = (s) => `${s.data?.layout_name ?? 'default'}/${s.data?.area ?? ''}`
+          const inArea = {}
+          for (const s of sections) inArea[areaOf(s)] = (inArea[areaOf(s)] ?? 0) + 1
+          const seen = {}
           return sectionsText(sections, lang, refIndexOf(read), (i, s) => {
             const d = s.data ?? {}
-            return `The ${d.area ?? 'layout area'}${d.layout_name && d.layout_name !== 'default' ? ` of the layout ${d.layout_name}` : ''}`
+            const k = areaOf(s)
+            seen[k] = (seen[k] ?? 0) + 1
+            const place = inArea[k] > 1 ? `, section ${seen[k]} of ${inArea[k]}` : ''
+            return `The ${d.area ?? 'layout area'}${d.layout_name && d.layout_name !== 'default' ? ` of the layout ${d.layout_name}` : ''}${place}`
           })
         },
       },

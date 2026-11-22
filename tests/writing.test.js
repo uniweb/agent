@@ -6,7 +6,7 @@ import { uuidv7 } from '../src/ids.js'
 const doc = (text) => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] })
 
 /** A client shaped as the agent routes answer, keeping every write it is sent. */
-function fakeClient({ write } = {}) {
+function fakeClient({ write, layouts } = {}) {
   const writes = []
   const site = {
     info_item_id: 10,
@@ -36,8 +36,8 @@ function fakeClient({ write } = {}) {
     status: async () => ({ published: false }),
     pendingRequest: async () => ({ pending: [] }),
     page: async () => ({ sections: rows }),
-    layouts: async () => ({ sections: [{ item_uuid: 'l-footer', item_id: 201, updated_at: 'footer-v1', data: { area: 'footer', layout_name: 'default', type: 'Footer', content: { en: doc('© Maple') } } }] }),
-    call: async () => ({ schema: { Hero: { content: { title: 'Headline [1]' } }, Grid: {}, Footer: { content: { links: 'Links' } }, Header: {}, Testimonials: { content: { items: { label: 'Quotes [2-6]', content: { title: 'Who' } } } } } }),
+    layouts: async () => layouts ?? ({ sections: [{ item_uuid: 'l-footer', item_id: 201, updated_at: 'footer-v1', data: { area: 'footer', layout_name: 'default', type: 'Footer', content: { en: doc('© Maple') } } }] }),
+    call: async () => ({ schema: { Hero: { content: { title: 'Headline [1]' } }, Grid: {}, Footer: { content: { links: 'Links' } }, Header: {}, AlertBar: {}, Testimonials: { content: { items: { label: 'Quotes [2-6]', content: { title: 'Who' } } } } } }),
     templates: async () => ({
       templates: [
         { uuid: 't-launch', title: 'Product Launch', foundation: '@std/marketing@1.0.0', preview_url: 'https://p/launch.png' },
@@ -199,6 +199,29 @@ describe('the layout, the theme and the site', () => {
     await tools.set_layout.run({ site: 'Maple & Rye', area: 'header', markdown: '---\ntype: Header\n---\n[Menu](/menu)\n' })
     expect(client.writes[0]).toMatchObject({ kind: 'update', item_id: 201, if_unmodified_since: 'footer-v1', data: { area: 'footer', layout_name: 'default', type: 'Footer' } })
     expect(client.writes[1]).toMatchObject({ kind: 'create', section_id: 23, data: { area: 'header', layout_name: 'default', type: 'Header' } })
+  })
+
+  it('keeps several sections in one area: adds a notice first, changes one by its id, and asks which when it is not told', async () => {
+    const twoInHeader = {
+      sections: [
+        { item_uuid: 'l-alert', item_id: 301, order: 0, updated_at: 'alert-v1', data: { area: 'header', layout_name: 'default', type: 'AlertBar', content: { en: doc('Closed on Monday') } } },
+        { item_uuid: 'l-header', item_id: 302, order: 1, updated_at: 'header-v1', data: { area: 'header', layout_name: 'default', type: 'Header', content: { en: doc('Maple & Rye') } } },
+      ],
+    }
+    const client = fakeClient({ layouts: twoInHeader })
+    const tools = toolsOf(client)
+    const notice = '---\ntype: AlertBar\n---\n# Open on Sunday from May\n'
+    expect((await tools.set_layout.run({ site: 'Maple & Rye', area: 'header', version: 'header-v1', markdown: notice })).text).toMatch(/The header has 2 sections \(AlertBar, id l-alert; Header, id l-header\): give the id/)
+    expect(client.writes).toHaveLength(0)
+    await tools.set_layout.run({ site: 'Maple & Rye', area: 'header', section: 'l-alert', version: 'alert-v1', markdown: notice })
+    expect(client.writes[0]).toMatchObject({ kind: 'update', item_id: 301, if_unmodified_since: 'alert-v1', data: { area: 'header', type: 'AlertBar' } })
+    const added = await tools.set_layout.run({ site: 'Maple & Rye', area: 'header', add: 'first', markdown: notice })
+    expect(client.writes[1]).toMatchObject({ kind: 'create', section_id: 23, position: 'first', data: { area: 'header', layout_name: 'default', type: 'AlertBar' } })
+    expect(added.text).toMatch(/Added: a AlertBar to the header, before its other sections/)
+    expect((await tools.read_layout.run({ site: 'Maple & Rye' })).text).toMatch(/The header, section 1 of 2[\s\S]*The header, section 2 of 2/)
+    await tools.remove_section.run({ site: 'Maple & Rye', area: 'header', section: 'l-alert', version: 'alert-v1' })
+    expect(client.writes[2]).toMatchObject({ kind: 'delete', item_id: 301, if_unmodified_since: 'alert-v1' })
+    expect((await tools.remove_section.run({ site: 'Maple & Rye', section: 'l-alert', version: 'alert-v1' })).text).toMatch(/Give route for a section of a page, or area/)
   })
 
   it('reads the theme as YAML with its version, and replaces it whole, keeping the other settings', async () => {

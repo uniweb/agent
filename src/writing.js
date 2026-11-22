@@ -220,24 +220,38 @@ export function writingTools(ctx) {
     },
     {
       name: 'remove_section',
-      description: "Remove one section from a page, with the sections inside it. Give its id and the version read_page answered.",
+      description:
+        "Remove one section from a page, with the sections inside it, or one section of a layout area (the header or the footer). Give its id and the version read_page, or read_layout, answered.",
       inputSchema: {
         type: 'object',
         properties: {
           site: siteProp,
-          route: { type: 'string', description: "The page's route" },
+          route: { type: 'string', description: "The page's route, for a section of a page" },
+          area: { type: 'string', description: 'The layout area (header or footer), for a section of the layout instead' },
           section: { type: 'string', description: "The section's id" },
-          version: { type: 'string', description: 'The version read_page gave it' },
+          version: { type: 'string', description: 'The version read_page or read_layout gave it' },
         },
-        required: ['site', 'route', 'section', 'version'],
+        required: ['site', 'section', 'version'],
         additionalProperties: false,
       },
-      run: async ({ site: ref, route, section: sectionId, version }) => {
+      run: async ({ site: ref, route, area, section: sectionId, version }) => {
         const site = await siteNamed(ref)
         const read = await siteRead(site)
-        const { page, want } = await pageAt(site, read, route, read.defaultLanguage)
-        const { row } = await sectionOn(site, page.uuid, sectionId)
-        if (!row) refuse(`The page at ${want} has no section ${sectionId}.`)
+        if (!route === !area) refuse('Give route for a section of a page, or area for a section of the layout.')
+        let row
+        let want
+        if (area) {
+          row = ((await client.layouts(site.uuid))?.sections ?? []).find(
+            (s) => s.data?.area === area && (s.item_uuid === sectionId || String(s.item_id) === String(sectionId)),
+          )
+          want = `the ${area}`
+          if (!row) refuse(`The ${area} has no section ${sectionId}: read_layout lists its sections.`)
+        } else {
+          const at = await pageAt(site, read, route, read.defaultLanguage)
+          want = at.want
+          ;({ row } = await sectionOn(site, at.page.uuid, sectionId))
+          if (!row) refuse(`The page at ${want} has no section ${sectionId}.`)
+        }
         try {
           await client.write(site.uuid, { kind: 'delete', item_id: row.item_id, if_unmodified_since: version })
         } catch (err) {
@@ -322,26 +336,41 @@ export function writingTools(ctx) {
     },
     {
       name: 'set_layout',
-      description: "Write the site's header or footer, shown on every page, as Markdown with frontmatter naming its type. To change one that exists, give the version read_layout answered.",
+      description:
+        "Write a section of the site's header or footer, shown on every page, as Markdown with frontmatter naming its type. An area can hold several sections, such as a notice above the header: read_layout lists each with its id and version. To change one, give its version, and its id when the area has several. To add one, give add: first (before the area's others) or last.",
       inputSchema: {
         type: 'object',
         properties: {
           site: siteProp,
           area: { type: 'string', description: 'The layout area: header or footer' },
-          markdown: { type: 'string', description: 'The area: frontmatter naming its type, then its content' },
-          version: { type: 'string', description: 'The version read_layout gave the area, when it exists' },
+          markdown: { type: 'string', description: 'The section: frontmatter naming its type, then its content' },
+          section: { type: 'string', description: 'The id read_layout gave the section to change, when the area has several' },
+          add: { type: 'string', enum: ['first', 'last'], description: "Add a section to the area: first, before its others, or last, after them" },
+          version: { type: 'string', description: 'The version read_layout gave the section to change' },
           language: languageProp,
         },
         required: ['site', 'area', 'markdown'],
         additionalProperties: false,
       },
-      run: async ({ site: ref, area, markdown, version, language }) => {
+      run: async ({ site: ref, area, markdown, section: sectionId, add, version, language }) => {
         const site = await siteNamed(ref)
         const read = await siteRead(site)
         const lang = languageFor(language, read)
+        if (sectionId && add) refuse('Give section to change one of the area, or add to add one, not both.')
         const { section, written } = await prepare(site, read, markdown)
         const layouts = await client.layouts(site.uuid)
-        const row = (layouts?.sections ?? []).find((s) => s.data?.area === area && (s.data?.layout_name ?? 'default') === 'default')
+        const rows = (layouts?.sections ?? []).filter((s) => s.data?.area === area && (s.data?.layout_name ?? 'default') === 'default')
+        let row = null
+        if (sectionId) {
+          row = rows.find((s) => s.item_uuid === sectionId || String(s.item_id) === String(sectionId))
+          if (!row) refuse(`The ${area} has no section ${sectionId}: read_layout lists its sections.`)
+        } else if (!add) {
+          if (rows.length > 1) {
+            const listed = rows.map((s) => `${s.data?.type ?? 'a section'}, id ${s.item_uuid ?? s.item_id}`).join('; ')
+            refuse(`The ${area} has ${rows.length} sections (${listed}): give the id of the one to change, or add: first or last to add another.`)
+          }
+          row = rows[0] ?? null
+        }
         let answer
         if (row) {
           if (!version) refuse(`The site has a ${area} already: give the version read_layout answered for it.`)
@@ -353,15 +382,22 @@ export function writingTools(ctx) {
             throw err
           }
         } else {
+          // A new section goes first or last in its area; the backend takes no position before
+          // another section (measured 2026-11-22: `{ before }` is refused, `first` and `last` taken).
           answer = await client.write(site.uuid, {
             kind: 'create',
             section_id: read.body.layout_sections_section_id,
-            position: 'last',
+            position: add === 'first' ? 'first' : 'last',
             data: { ...mergeSection(null, section, lang), area, layout_name: 'default' },
           })
         }
         const r = resultOf(answer)
-        return withNotes(`Written: the ${area}, a ${section.type}. Its version is now ${r.item_updated_at ?? '(not given)'}.${written.length ? `\n${written.join('\n')}` : ''}`, await notesFor(site, section))
+        const what = row
+          ? `Written: ${rows.length > 1 ? `a section of the ${area}` : `the ${area}`}, a ${section.type}.`
+          : rows.length
+            ? `Added: a ${section.type} to the ${area}, ${add === 'first' ? 'before' : 'after'} its other sections, id ${r.item_uuid ?? r.item_id}.`
+            : `Written: the ${area}, a ${section.type}, id ${r.item_uuid ?? r.item_id}.`
+        return withNotes(`${what} Its version is now ${r.item_updated_at ?? '(not given)'}.${written.length ? `\n${written.join('\n')}` : ''}`, await notesFor(site, section))
       },
     },
     {
