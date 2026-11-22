@@ -173,6 +173,14 @@ describe('the layout, the theme and the site', () => {
     expect(client.writes[0]).toMatchObject({ kind: 'update', item_id: 11, if_unmodified_since: 'settings-v1', data: { theme: { colors: { primary: '#224488' } }, build: { prerender: true }, default_language: 'en' } })
   })
 
+  it('changes only what the theme change names, and removes a key given as null', async () => {
+    const client = fakeClient()
+    const stored = await client.site()
+    stored.settings_data.theme = { colors: { primary: '#aa5500', accent: '#00ff00' }, fonts: { body: 'Inter' }, vars: { gap: '2rem' } }
+    await toolsOf(client).set_theme.run({ site: 'Maple & Rye', version: 'settings-v1', theme: "colors:\n  primary: '#224488'\n  accent: null\n" })
+    expect(client.writes[0].data.theme).toEqual({ colors: { primary: '#224488' }, fonts: { body: 'Inter' }, vars: { gap: '2rem' } })
+  })
+
   it("changes the site's name and keeps its other info", async () => {
     const client = fakeClient()
     await toolsOf(client).set_site_info.run({ site: 'Maple & Rye', name: 'Maple & Rye Bakery' })

@@ -18,6 +18,7 @@ import { SectionError, writeSection } from './section.js'
 import { languagesOf, pagesInOrder, pick, pickDocument, changedSince } from './site.js'
 import { vocabularyText } from './vocabulary.js'
 import { writingTools } from './writing.js'
+import { promotionTools } from './promotion.js'
 
 /** A refusal said to the agent: the message is the whole answer. */
 export class ToolRefusal extends Error {}
@@ -305,6 +306,9 @@ export function agentTools({ client, project = false }) {
       }),
     )
   }
+
+  // A site's Promote is in no project's files, so its tools are offered everywhere.
+  tools.push(...promotionTools({ client, siteNamed, siteRead, languageFor, refuse }))
 
   // Every answer and every refusal is text; nothing a tool throws reaches the host as an error
   // the model can't read.

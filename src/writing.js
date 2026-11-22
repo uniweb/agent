@@ -33,6 +33,21 @@ function withLanguageText(stored, text, language) {
   return language ? { [language]: text } : text
 }
 
+/**
+ * A change merged over what is stored: maps merge key by key, any other value replaces, and a key
+ * given as `null` is removed. So `{ colors: { primary: '#8a4b2a' } }` changes one colour and keeps
+ * the rest of a theme.
+ */
+function mergeOver(stored, change) {
+  if (!isPlainObject(change)) return change
+  const out = isPlainObject(stored) ? { ...stored } : {}
+  for (const [key, value] of Object.entries(change)) {
+    if (value === null) delete out[key]
+    else out[key] = isPlainObject(value) ? mergeOver(out[key], value) : value
+  }
+  return out
+}
+
 /** The section an agent wrote, merged over the one stored: what it wrote, and every field it didn't touch. */
 function mergeSection(stored, written, language) {
   const next = { ...(stored ?? {}) }
@@ -260,7 +275,7 @@ export function writingTools(ctx) {
             kind: 'create',
             section_id: read.body.pages_section_id,
             uuid: pageUuid,
-            parent_item_uuid: parent?.uuid ?? null,
+            ...(parent ? { parent_item_uuid: parent.uuid } : {}),
             position: 'last',
             data: {
               mode: 'regular',
@@ -340,12 +355,12 @@ export function writingTools(ctx) {
     },
     {
       name: 'set_theme',
-      description: "Replace the site's theme with YAML in the shape read_theme answers (colors, contexts, fonts, appearance). Give the version read_theme answered.",
+      description: "Change the site's theme: give only what changes, as YAML in the shape read_theme answers, such as colors: { primary: '#8a4b2a' }. The rest stays; a key given as null is removed. Give the version read_theme answered.",
       inputSchema: {
         type: 'object',
         properties: {
           site: siteProp,
-          theme: { type: 'string', description: 'The whole theme, as YAML' },
+          theme: { type: 'string', description: 'What changes in the theme, as YAML' },
           version: { type: 'string', description: 'The version read_theme gave' },
         },
         required: ['site', 'theme'],
@@ -361,7 +376,7 @@ export function writingTools(ctx) {
           refuse(`The theme is not valid YAML: ${String(err.message).split('\n')[0]}`)
         }
         if (!isPlainObject(parsed)) refuse('The theme is a map, such as colors: { primary: "#3b82f6" }.')
-        const data = { ...(body.settings_data ?? {}), theme: parsed }
+        const data = { ...(body.settings_data ?? {}), theme: mergeOver(body.settings_data?.theme, parsed) }
         if (body.settings_item_id == null) {
           await client.write(site.uuid, { kind: 'create', section_id: body.settings_section_id, position: 'last', data })
           return 'Written: the theme.'
@@ -423,7 +438,11 @@ export function writingTools(ctx) {
         const lines = ['Looks a site can start from, by foundation:']
         for (const [foundation, list] of byFoundation) {
           lines.push(`- ${foundation}`)
-          for (const c of list) lines.push(`  - "${pick(c.title ?? c.name, null) ?? '(untitled)'}" — template ${c.uuid}${c.preview_url ? ` — preview ${c.preview_url}` : ''}`)
+          for (const c of list) {
+            // A preview served by the backend is named by its path: say it whole, so it can be shown.
+            const preview = c.preview_url ? (/^[a-z]+:\/\//i.test(c.preview_url) ? c.preview_url : `${client.origin ?? ''}${c.preview_url}`) : null
+            lines.push(`  - "${pick(c.title ?? c.name, null) ?? '(untitled)'}" — template ${c.uuid}${preview ? ` — preview ${preview}` : ''}`)
+          }
         }
         lines.push('', 'look_vocabulary shows what a look offers; create_site starts a site wearing one.')
         return lines.join('\n')

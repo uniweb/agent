@@ -144,6 +144,8 @@ export function agentClient({ origin, openSession, fetch: doFetch = globalThis.f
   }
 
   return {
+    /** The backend, as `https://host[:port]`. */
+    origin: base,
     /** The session, opened if none is. */
     session: () => current(),
     /** Who the session acts for, its workspace and when it ends. */
