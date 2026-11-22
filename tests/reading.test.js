@@ -48,6 +48,19 @@ describe('howItReads', () => {
     expect(howItReads(section, registered).join('\n')).toMatch(/needs at least 2 of “Quotes”; it has 1/)
   })
 
+  it('says nothing is unshown for a type that reads its sequence, but for what its except leaves out', () => {
+    const { section } = readSection('---\ntype: Text\n---\n# What our regulars say\n\n> The best sourdough in Halifax.\n\nMarie Gagnon\n')
+    const text = { content: [{ element: 'sequence', kind: 'sequence', label: 'The text as you write it' }] }
+    expect(howItReads(section, text)).toEqual([])
+    const noQuotes = { content: [{ element: 'sequence', kind: 'sequence', except: ['quote'] }] }
+    expect(howItReads(section, noQuotes).join('\n')).toMatch(/has quotes, which it doesn't show/)
+  })
+
+  it('still says a sequence leaves entries unshown, since they are a group of their own', () => {
+    const { section } = readSection('---\ntype: Text\n---\n# Breads\n\n---\n\n### Sourdough\n\nSlow.\n')
+    expect(howItReads(section, { content: [{ element: 'sequence', kind: 'sequence' }] }).join('\n')).toMatch(/has items, which it doesn't show/)
+  })
+
   it('gives no notes for a type that says nothing about its content', () => {
     const { section } = readSection('---\ntype: Hero\n---\n# Hi\n')
     expect(howItReads(section, { description: 'A hero' })).toEqual([])
