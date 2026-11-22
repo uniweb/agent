@@ -55,10 +55,39 @@ vocabularyText({ ref: '@acme/marketing@1.2.0', schema })
 It lists each section type, what it is for, the content it reads and its settings, in short text
 a model can reason over, and ends with how a section is written.
 
+## A site's pages
+
+```js
+import { pagesInOrder } from '@uniweb/agent'
+
+pagesInOrder(site.pages, { language: 'fr', defaultLanguage: 'en' })
+// [ { route: '/', title: 'Accueil', … }, { route: '/a-propos', title: 'À propos', … }, … ]
+```
+
+Each page has its route in the language asked for, by the rule a site's sync uses, in the order
+the site keeps its pages.
+
+## The backend
+
+```js
+import { agentClient, cliDoor } from '@uniweb/agent'
+
+const client = agentClient({
+  origin: 'https://uniweb.app',
+  openSession: cliDoor({ origin: 'https://uniweb.app', token: cliToken, workspace: '@acme' }),
+})
+const sites = await client.sites()
+```
+
+An agent works on a person's sites with a session of its own, in one workspace, as that person. A
+door makes the session: `cliDoor` makes it from the CLI's sign-in. The client opens a new session
+when the old one ends. When the sign-in itself has ended, its error says the person signs in again
+(`signInAgain`).
+
 ## Status
 
-Early. Sections, how a section type reads them and the vocabulary are in place. The tools an agent
-calls come next.
+Early. Sections, how a section type reads them, the vocabulary, a site's pages and the backend's
+reads are in place. The tools an agent calls come next.
 
 ## License
 

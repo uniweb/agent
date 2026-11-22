@@ -7,7 +7,9 @@
     ".": "./src/index.js",
     "./section": "./src/section.js",
     "./reading": "./src/reading.js",
-    "./vocabulary": "./src/vocabulary.js"
+    "./vocabulary": "./src/vocabulary.js",
+    "./site": "./src/site.js",
+    "./backend": "./src/backend.js"
   },
   "files": [
     "src"

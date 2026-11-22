@@ -14,6 +14,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readSection } from '../src/section.js'
+import { routeOf } from '../src/site.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const FRAMEWORK = resolve(here, '../..')
@@ -67,5 +68,27 @@ describe.skipIf(!existsSync(COLLECTOR) || sectionFiles.length === 0)('a section 
 
     const { section } = readSection(readFileSync(file, 'utf8'))
     expect(section).toEqual(expected)
+  })
+})
+
+const SYNC_SITE = join(FRAMEWORK, 'build/src/uwx/site.js')
+
+describe.skipIf(!existsSync(SYNC_SITE))("a page's route is the sync's", () => {
+  const pages = [
+    ['a page at the top', { slug: { en: 'about' } }, '/'],
+    ['a page under another', { slug: { en: 'team' } }, '/about'],
+    ['an index page', { slug: { en: 'home' }, is_index: true }, '/'],
+    ['an index page under another', { slug: 'overview', is_index: true }, '/docs'],
+    ['a dynamic page by its parameter', { slug: 'detail', is_dynamic: true, param_name: 'id' }, '/blog'],
+    ['a dynamic page with no parameter name', { slug: 'slug', is_dynamic: true }, '/blog'],
+    ['a catch-all page', { slug: '...path', is_dynamic: true }, '/docs'],
+    ['a slug in another language', { slug: { fr: 'a-propos', en: 'about' } }, '/'],
+    ['a bare slug', { slug: 'contact' }, '/'],
+  ]
+  it.each(pages)('%s', async (_name, page, parentRoute) => {
+    const { buildRouteOf } = await import(SYNC_SITE)
+    for (const language of ['en', 'fr']) {
+      expect(routeOf(page, parentRoute, language)).toBe(buildRouteOf(page, parentRoute, language))
+    }
   })
 })
