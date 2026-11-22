@@ -36,6 +36,13 @@ describe('cliDoor', () => {
     expect(calls[0].headers).not.toHaveProperty('x-uniweb-workspace')
   })
 
+  it('says so when the backend offers no agent sessions yet', async () => {
+    const { fetch } = fakeFetch({})
+    const err = await cliDoor({ origin: ORIGIN, token: 'cli', fetch })().catch((e) => e)
+    expect(err).toBeInstanceOf(AgentError)
+    expect(err.message).toMatch(/does not offer agent sessions yet/)
+  })
+
   it("says the person signs in again when the CLI's login has ended", async () => {
     const { fetch } = fakeFetch({ 'POST /dev/auth/agent': () => json(401, { reason: 'session_expired' }) })
     const err = await cliDoor({ origin: ORIGIN, token: 'old', fetch })().catch((e) => e)

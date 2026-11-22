@@ -84,10 +84,37 @@ door makes the session: `cliDoor` makes it from the CLI's sign-in. The client op
 when the old one ends. When the sign-in itself has ended, its error says the person signs in again
 (`signInAgain`).
 
+## The tools
+
+```js
+import { agentTools } from '@uniweb/agent'
+
+const tools = agentTools({ client })
+const { text, isError } = await tools.find((t) => t.name === 'read_page').run({ site: 'Maple & Rye', route: '/hours' })
+```
+
+Each tool has a name, a description a model reads to choose it, its inputs as JSON Schema, and
+`run`, which answers in short text. A refusal is text too, and says what to do instead. The tools
+so far read: the sites, one site at a glance, the foundation's vocabulary, a page's sections and
+the layout areas. In a project, whose files are the site's copy, pass `{ project: true }` and the
+tools whose work the files already do are left out.
+
+## Over the Model Context Protocol
+
+```js
+import { mcpServer, agentTools, AGENT_INSTRUCTIONS } from '@uniweb/agent'
+
+const server = mcpServer({ name: 'uniweb', version: '1.0.0', tools: agentTools({ client }), instructions: AGENT_INSTRUCTIONS })
+const answer = await server.handle(message) // one JSON-RPC message in, its answer out (null for a notification)
+```
+
+`mcpServer` has no transport of its own: a process carries the messages over its standard streams,
+a service over HTTP. The CLI's `uniweb mcp` is the first: a host such as Claude Desktop or Claude
+Code starts it, and it works as the person signed in to the CLI.
+
 ## Status
 
-Early. Sections, how a section type reads them, the vocabulary, a site's pages and the backend's
-reads are in place. The tools an agent calls come next.
+Early. The reads are in place, served by `uniweb mcp`. Writing comes next.
 
 ## License
 

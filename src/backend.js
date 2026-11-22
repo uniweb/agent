@@ -61,6 +61,9 @@ export function cliDoor({ origin, token, workspace = null, fetch: doFetch = glob
         signInAgain: true,
       })
     }
+    if (res.status === 404 || res.status === 405) {
+      throw new AgentError(`The Uniweb backend at ${base} does not offer agent sessions yet.`, { status: res.status })
+    }
     if (!res.ok) throw await refusal(res, 'Could not open an agent session')
     const body = await res.json().catch(() => null)
     if (!body?.token) throw new AgentError('The backend answered with no agent session.', { status: res.status })

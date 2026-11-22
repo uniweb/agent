@@ -1,7 +1,7 @@
 {
   "name": "@uniweb/agent",
   "version": "0.1.0",
-  "description": "What an AI agent needs to work on a Uniweb site: its sections as Markdown, how each section type reads what was written, and the foundation's vocabulary in words.",
+  "description": "What an AI agent needs to work on a Uniweb site: its sections as Markdown, what each section type reads of them, the foundation's vocabulary, and tools served over the Model Context Protocol.",
   "type": "module",
   "exports": {
     ".": "./src/index.js",
@@ -9,7 +9,9 @@
     "./reading": "./src/reading.js",
     "./vocabulary": "./src/vocabulary.js",
     "./site": "./src/site.js",
-    "./backend": "./src/backend.js"
+    "./backend": "./src/backend.js",
+    "./tools": "./src/tools.js",
+    "./mcp": "./src/mcp.js"
   },
   "files": [
     "src"

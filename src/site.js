@@ -27,6 +27,15 @@ export function pick(value, language) {
   return keys.length ? value[keys[0]] : undefined
 }
 
+/**
+ * One language's document of a rich-text field: a stored document as it is, or the language
+ * asked for from one stored per language, else the first.
+ */
+export function pickDocument(value, language) {
+  if (isPlainObject(value) && value.type === 'doc') return value
+  return pick(value, language)
+}
+
 /** A site's languages, from its settings: `{ languages, defaultLanguage }`. */
 export function languagesOf(settings) {
   const languages = Array.isArray(settings?.languages) ? settings.languages.filter((l) => typeof l === 'string') : []
