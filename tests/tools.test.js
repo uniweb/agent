@@ -22,7 +22,7 @@ function fakeClient(overrides = {}) {
     ],
     site: async () => site,
     status: async () => ({ published: true, last_published_at: '2026-11-21T00:00:00Z', draft_dirty: true, visitor_url: 'https://maple.example/' }),
-    pendingRequest: async () => ({ pending: [{ kind: 'hosting_plan', detail: 'this site has no hosting plan yet', quote: { amount_due_cents: 1900 } }] }),
+    pendingRequest: async () => ({ pending: [{ kind: 'hosting_plan', detail: 'this site has no hosting plan yet' }] }),
     page: async () => ({
       sections: [
         { item_uuid: 's-1', order: 1, parent_item_uuid: null, updated_at: 'v1', data: { type: 'Hero', params: { theme: 'dark' }, content: { en: doc('Fresh bread'), fr: doc('Pain frais') } } },
