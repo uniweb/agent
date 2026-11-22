@@ -170,6 +170,15 @@ export function agentClient({ origin, openSession, fetch: doFetch = globalThis.f
     page: (site, page) => call(`/agent/sites/${enc(site)}/pages/${enc(page)}`),
     /** The site's layout areas, its header and footer among them. */
     layouts: (site) => call(`/agent/sites/${enc(site)}/layouts`),
+    /**
+     * Change a site's content: one operation, or `{ batch: [...] }`, all or nothing. Each
+     * update, delete and move names the version it read (`if_unmodified_since`).
+     */
+    write: (site, body) => call(`/agent/sites/${enc(site)}/content/items`, { method: 'POST', body }),
+    /** The templates the person may clone: the looks a site can start from. */
+    templates: () => call('/agent/templates'),
+    /** A new site wearing a template's look and nothing else: `{ template_uuid, name?, languages?, default_language? }`. */
+    siteFromLook: (body) => call('/agent/sites/from-look', { method: 'POST', body }),
     /** Any agent route, for what this client doesn't name yet. */
     call,
   }
