@@ -27,7 +27,8 @@ function countOf(parsed, element) {
 const HELD = ['paragraphs', 'links', 'images', 'videos', 'lists', 'items', 'quotes', 'tables']
 
 // The kind a sequence names each of them by (`SEQUENCE_KINDS`, `@uniweb/schemas/content`). Entries
-// are a group of their own, which no sequence shows.
+// have no kind: the sequence is every element of the section in order, an entry's heading and text
+// included (the parser makes the entries from it), so a type that reads it shows them.
 const KIND_OF = { paragraphs: 'prose', links: 'link', images: 'image', videos: 'video', lists: 'list', quotes: 'quote', tables: 'table' }
 
 /** Where parsed content falls short of, or goes past, what a type reads, in words. */
@@ -39,7 +40,10 @@ function compareContent(parsed, elements, what) {
   // kinds its `except` leaves out.
   const sequence = elements.find((e) => e.element === 'sequence' || e.kind === 'sequence')
   const except = new Set(Array.isArray(sequence?.except) ? sequence.except : [])
-  if (sequence) for (const [key, kind] of Object.entries(KIND_OF)) if (!except.has(kind)) read.add(key)
+  if (sequence) {
+    for (const [key, kind] of Object.entries(KIND_OF)) if (!except.has(kind)) read.add(key)
+    read.add('items')
+  }
 
   for (const e of elements) {
     if (!e.element) continue

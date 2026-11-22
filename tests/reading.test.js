@@ -56,9 +56,9 @@ describe('howItReads', () => {
     expect(howItReads(section, noQuotes).join('\n')).toMatch(/has quotes, which it doesn't show/)
   })
 
-  it('still says a sequence leaves entries unshown, since they are a group of their own', () => {
-    const { section } = readSection('---\ntype: Text\n---\n# Breads\n\n---\n\n### Sourdough\n\nSlow.\n')
-    expect(howItReads(section, { content: [{ element: 'sequence', kind: 'sequence' }] }).join('\n')).toMatch(/has items, which it doesn't show/)
+  it('says nothing of entries to a type that reads its sequence, which holds their text in order', () => {
+    const { section } = readSection('---\ntype: Text\n---\n# Privacy\n\nWe keep little.\n\n---\n\n### What we collect\n\nYour email.\n\n---\n\n### How long\n\nA year.\n')
+    expect(howItReads(section, { content: [{ element: 'sequence', kind: 'sequence' }] })).toEqual([])
   })
 
   it('gives no notes for a type that says nothing about its content', () => {
