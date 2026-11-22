@@ -15,6 +15,7 @@ import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readSection } from '../src/section.js'
 import { routeOf } from '../src/site.js'
+import * as links from '../src/links.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const FRAMEWORK = resolve(here, '../..')
@@ -90,5 +91,32 @@ describe.skipIf(!existsSync(SYNC_SITE))("a page's route is the sync's", () => {
     for (const language of ['en', 'fr']) {
       expect(routeOf(page, parentRoute, language)).toBe(buildRouteOf(page, parentRoute, language))
     }
+  })
+})
+
+const PAGE_REFS = join(FRAMEWORK, 'build/src/uwx/page-refs.js')
+
+describe.skipIf(!existsSync(PAGE_REFS))("a page link is read and stored by the sync's rule", () => {
+  const pages = [
+    { id: '3f58142d', route: '/', dynamic: false },
+    { id: 'a1b2c3d4', route: '/hours', dynamic: false },
+    { id: 'install', route: '/docs/install', dynamic: false },
+    { id: null, route: '/about', dynamic: false },
+    { id: '9e8d7c6b', route: '/blog/:slug', dynamic: true },
+    { id: 'b2c3d4e5', route: '/about/team', dynamic: false },
+  ]
+  const refs = [
+    'page:a1b2c3d4', 'page:a1b2c3d4#open', 'page:3f58142d', 'page:3f58142d#bakes', 'page:hours', 'page:/',
+    'page:/#bakes', 'page:install', 'page:about', 'page:about/team', 'page:9e8d7c6b', 'page:nowhere',
+    'page:home#bakes', 'https://example.com', '/hours', '#bakes', 'cafebabe',
+  ]
+  it.each(refs)('%s', async (ref) => {
+    const sync = await import(PAGE_REFS)
+    const ours = links.pageRefIndex(pages)
+    const theirs = sync.pageRefIndex(pages)
+    expect(links.storedPageRef(ref, ours)).toBe(sync.storedPageRef(ref, theirs))
+    expect(links.writtenPageRef(ref, ours)).toBe(sync.writtenPageRef(ref, theirs))
+    const id = ref.replace(/^page:/, '').replace(/#.*$/, '')
+    expect(links.isCodeId(id)).toBe(sync.isCodeId(id))
   })
 })

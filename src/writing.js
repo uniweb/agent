@@ -17,6 +17,7 @@ import { uuidv7 } from './ids.js'
 import { howItReads } from './reading.js'
 import { readSection } from './section.js'
 import { pagesInOrder, pick } from './site.js'
+import { mapSectionRefs, mintPageId, pageRefIndex, pageRefPages, storedPageRef, unresolvedRefs, withAssetIdentity } from './links.js'
 
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
 
@@ -95,6 +96,23 @@ export function writingTools(ctx) {
     return schema ? Object.keys(schema).filter((k) => !k.startsWith('_')) : null
   }
 
+  /**
+   * A section an agent wrote, as it is stored: its links to pages by their ids, its pictures with
+   * their identity, and notes on what was written and does nothing, a link to no page among them.
+   * `extra` names pages the same write makes, so a link to one resolves.
+   */
+  async function prepare(site, read, markdown, { types, extra = [] } = {}) {
+    const { section, notes } = readSection(markdown, { types: types ?? (await typesOf(site)) })
+    const pages = pageRefPages(pagesInOrder(read.body.pages, { language: read.defaultLanguage, defaultLanguage: read.defaultLanguage }))
+    const index = pageRefIndex([...pages, ...extra])
+    const dead = unresolvedRefs(section, index).map(
+      (ref) => `The link ${ref} names no page of this site, so it goes nowhere. Link a page by its route: page:/ for the home page, page:hours for /hours, and #id after it for a section.`,
+    )
+    const stored = mapSectionRefs(section, (ref) => storedPageRef(ref, index))
+    withAssetIdentity(stored.content)
+    return { section: stored, written: [...notes, ...dead] }
+  }
+
   async function pageAt(site, read, route, language) {
     const want = ctx.normalizeRoute(route)
     const pages = pagesInOrder(read.body.pages, { language, defaultLanguage: read.defaultLanguage })
@@ -136,7 +154,7 @@ export function writingTools(ctx) {
         const { page, want } = await pageAt(site, read, route, lang)
         const { row } = await sectionOn(site, page.uuid, sectionId)
         if (!row) refuse(`The page at ${want} has no section ${sectionId}. read_page lists its sections and their ids.`)
-        const { section, notes: written } = readSection(markdown, { types: await typesOf(site) })
+        const { section, written } = await prepare(site, read, markdown)
         const data = mergeSection(row.data, section, lang)
         let answer
         try {
@@ -171,7 +189,7 @@ export function writingTools(ctx) {
         const read = await siteRead(site)
         const lang = languageFor(language, read)
         const { page, want } = await pageAt(site, read, route, lang)
-        const { section, notes: written } = readSection(markdown, { types: await typesOf(site) })
+        const { section, written } = await prepare(site, read, markdown)
         let parent = page.uuid
         let position = 'last'
         if (inside || after) {
@@ -261,13 +279,16 @@ export function writingTools(ctx) {
         const parent = parentRoute ? pages.find((p) => p.route === parentRoute) : null
         if (parentRoute && !parent) refuse(`The site has no page at ${parentRoute} to put ${want} under. Add that page first.`)
         const types = await typesOf(site)
-        const parsed = sections.map((md, i) => {
+        // The new page gets an id, as an editor gives one, so a link can name it and outlive a rename.
+        const pageId = mintPageId()
+        const parsed = []
+        for (const [i, md] of sections.entries()) {
           try {
-            return readSection(md, { types })
+            parsed.push(await prepare(site, read, md, { types, extra: [{ id: pageId, route: want, dynamic: false }] }))
           } catch (err) {
             refuse(`Section ${i + 1}: ${err.message}`)
           }
-        })
+        }
         const pageUuid = uuidv7()
         const sample = read.body.pages?.[0]?.data
         const batch = [
@@ -281,6 +302,7 @@ export function writingTools(ctx) {
               mode: 'regular',
               slug: withLanguageText(sample?.slug, segment, lang),
               title: withLanguageText(sample?.title, title, lang),
+              stable_id: pageId,
               ...(isHome ? { is_index: true } : {}),
             },
           },
@@ -294,7 +316,7 @@ export function writingTools(ctx) {
         ]
         const answer = await client.write(site.uuid, { batch })
         const ids = parsed.map((_, i) => resultOf(answer, i + 1)).map((r, i) => `${i + 1}. ${parsed[i].section.type}: id ${r.item_uuid ?? r.item_id}, version ${r.item_updated_at ?? '(not given)'}`)
-        const notes = (await Promise.all(parsed.map(({ section }) => notesFor(site, section)))).flatMap((n, i) => n.map((x) => `Section ${i + 1}: ${x}`))
+        const notes = (await Promise.all(parsed.map(async ({ section, written }) => [...written, ...(await notesFor(site, section))]))).flatMap((n, i) => n.map((x) => `Section ${i + 1}: ${x}`))
         return withNotes([`Added: the page ${want}, "${title}", with ${parsed.length} section${parsed.length === 1 ? '' : 's'}:`, ...ids].join('\n'), notes)
       },
     },
@@ -317,7 +339,7 @@ export function writingTools(ctx) {
         const site = await siteNamed(ref)
         const read = await siteRead(site)
         const lang = languageFor(language, read)
-        const { section, notes: written } = readSection(markdown, { types: await typesOf(site) })
+        const { section, written } = await prepare(site, read, markdown)
         const layouts = await client.layouts(site.uuid)
         const row = (layouts?.sections ?? []).find((s) => s.data?.area === area && (s.data?.layout_name ?? 'default') === 'default')
         let answer

@@ -19,6 +19,7 @@ import { languagesOf, pagesInOrder, pick, pickDocument, changedSince } from './s
 import { vocabularyText } from './vocabulary.js'
 import { writingTools } from './writing.js'
 import { promotionTools } from './promotion.js'
+import { mapSectionRefs, pageRefIndex, pageRefPages, unresolvedRefs, withoutAssetIdentity, writtenPageRef } from './links.js'
 
 /** A refusal said to the agent: the message is the whole answer. */
 export class ToolRefusal extends Error {}
@@ -138,8 +139,13 @@ export function agentTools({ client, project = false }) {
     refuse(`No template "${look}" among the looks the person may use. list_looks shows them.`)
   }
 
-  /** A list of sections, in their order, nested under their parents, as Markdown. */
-  function sectionsText(sections, language, label = (i) => `Section ${i}`) {
+  /** How a site's links name its pages: by id, else by route in the default language. */
+  function refIndexOf(read) {
+    return pageRefIndex(pageRefPages(pagesInOrder(read.body.pages, { language: read.defaultLanguage, defaultLanguage: read.defaultLanguage })))
+  }
+
+  /** A list of sections, in their order, nested under their parents, as Markdown, each link to a page by its route. */
+  function sectionsText(sections, language, index, label = (i) => `Section ${i}`) {
     const byParent = new Map()
     for (const s of sections ?? []) {
       const p = s.parent_item_uuid ?? null
@@ -157,7 +163,11 @@ export function agentTools({ client, project = false }) {
         out.push(`id: ${s.item_uuid} · version: ${s.updated_at}`)
         out.push('')
         try {
-          out.push(writeSection({ ...d, content: pickDocument(d.content, language) }).trimEnd())
+          const shown = mapSectionRefs({ ...d, content: pickDocument(d.content, language) }, (ref) => writtenPageRef(ref, index))
+          withoutAssetIdentity(shown.content)
+          out.push(writeSection(shown).trimEnd())
+          const dead = unresolvedRefs(shown, index)
+          if (dead.length) out.push('', `Links here that go nowhere, since they name no page of this site: ${dead.join(', ')}. Link a page by its route: page:/ for the home page, page:hours for /hours.`)
         } catch (err) {
           out.push(`(This section can't be shown as Markdown: ${err.message})`)
         }
@@ -266,7 +276,7 @@ export function agentTools({ client, project = false }) {
           const sections = body?.sections ?? []
           const head = `${page.title ?? want} (${want})${lang ? `, in ${lang}` : ''}: ${sections.length} section${sections.length === 1 ? '' : 's'}.`
           if (!sections.length) return `${head}\nThe page has no sections.`
-          return `${head}\n\n${sectionsText(sections, lang)}`
+          return `${head}\n\n${sectionsText(sections, lang, refIndexOf(read))}`
         },
       },
       {
@@ -284,7 +294,7 @@ export function agentTools({ client, project = false }) {
           const lang = languageFor(language, read)
           const sections = (await client.layouts(site.uuid))?.sections ?? []
           if (!sections.length) return 'The site has no layout areas yet: no header, no footer. set_layout writes them.'
-          return sectionsText(sections, lang, (i, s) => {
+          return sectionsText(sections, lang, refIndexOf(read), (i, s) => {
             const d = s.data ?? {}
             return `The ${d.area ?? 'layout area'}${d.layout_name && d.layout_name !== 'default' ? ` of the layout ${d.layout_name}` : ''}`
           })

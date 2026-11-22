@@ -98,6 +98,42 @@ describe('write_section', () => {
   })
 })
 
+describe('links and pictures, as stored', () => {
+  const hash = 'c3ee7f0d40cacb2c7190f04084a9d1e8c2c3518752a8a8b6d82339b494bb3342'
+  const withIds = (client) => {
+    const read = client.site
+    client.site = async () => {
+      const s = await read()
+      return { ...s, pages: s.pages.map((p) => ({ ...p, data: { ...p.data, stable_id: p.page_uuid === 'p-about' ? 'a1b2c3d4' : 'home-word' } })) }
+    }
+    return client
+  }
+
+  it("stores a route as its page's id, notes a link to no page, and gives a picture its identity", async () => {
+    const client = withIds(fakeClient())
+    const { text } = await toolsOf(client).write_section.run({
+      site: 'Maple & Rye',
+      route: '/',
+      section: 's-hero',
+      version: 'hero-v1',
+      markdown: `---\ntype: Hero\n---\n# Bread\n\n[About us](page:about) [Our bakes](page:home#bakes)\n\n![Counter](/static/asset/dist/${hash}/base.webp)\n`,
+    })
+    const stored = JSON.stringify(client.writes[0].data.content.en)
+    expect(stored).toContain('"href":"page:a1b2c3d4"')
+    expect(stored).toContain(`"assetId":"${hash}"`)
+    expect(stored).toContain('"assetExt":"webp"')
+    expect(text).toMatch(/The link page:home#bakes names no page of this site/)
+  })
+
+  it('gives a new page an id, and stores a link to it by that id', async () => {
+    const client = fakeClient()
+    await toolsOf(client).add_page.run({ site: 'Maple & Rye', route: '/hours', title: 'Hours', sections: ['---\ntype: Hero\n---\n# Hours\n\n[Back home](page:/) [Here](page:hours#open)\n'] })
+    const [page, section] = client.writes[0].batch
+    expect(page.data.stable_id).toMatch(/^(?=[0-9a-f]*[0-9])[0-9a-f]{8}$/)
+    expect(JSON.stringify(section.data.content)).toContain(`"href":"page:${page.data.stable_id}#open"`)
+  })
+})
+
 describe('add_section and remove_section', () => {
   it('adds a section last on its page, after another, or inside one', async () => {
     const client = fakeClient()
