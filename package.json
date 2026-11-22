@@ -1,0 +1,47 @@
+{
+  "name": "@uniweb/agent",
+  "version": "0.1.0",
+  "description": "What an AI agent needs to work on a Uniweb site: its sections as Markdown, how each section type reads what was written, and the foundation's vocabulary in words.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./section": "./src/section.js",
+    "./reading": "./src/reading.js",
+    "./vocabulary": "./src/vocabulary.js"
+  },
+  "files": [
+    "src"
+  ],
+  "sideEffects": false,
+  "keywords": [
+    "uniweb",
+    "agent",
+    "mcp",
+    "markdown",
+    "sections"
+  ],
+  "author": "Proximify",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/uniweb/agent.git"
+  },
+  "homepage": "https://github.com/uniweb/agent#readme",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@uniweb/content-reader": "workspace:~",
+    "@uniweb/content-writer": "workspace:~",
+    "@uniweb/schemas": "workspace:~",
+    "@uniweb/semantic-parser": "workspace:~",
+    "js-yaml": "^4.3.2"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.7"
+  }
+}
