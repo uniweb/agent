@@ -1,6 +1,6 @@
 {
   "name": "@uniweb/agent",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "What an AI agent needs to work on a Uniweb site: its sections as Markdown, what each section type reads of them, the foundation's vocabulary, and tools served over the Model Context Protocol.",
   "type": "module",
   "exports": {
